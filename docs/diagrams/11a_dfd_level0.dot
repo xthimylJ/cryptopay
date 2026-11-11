@@ -1,0 +1,15 @@
+digraph DFD0 {
+  label="CryptoPay — DFD Level 0 (Context diagram)"; labelloc=t; fontsize=18; fontname="DejaVu Sans";
+  rankdir=LR; nodesep=0.7; ranksep=1.4; dpi=150;
+  node [fontname="DejaVu Sans", fontsize=12]; edge [fontname="DejaVu Sans", fontsize=10, color="#3d3f5c"];
+  merchant [label="Merchant /\nMerchant's server", shape=box, style=filled, fillcolor="#f6f7fb"];
+  customer [label="Customer", shape=box, style=filled, fillcolor="#f6f7fb"];
+  chain [label="Ethereum Sepolia\n(RPC node)", shape=box, style=filled, fillcolor="#f6f7fb"];
+  P0 [label="0\nCryptoPay\nPayment Gateway", shape=circle, style=filled, fillcolor="#eef0ff", color="#4f46e5", width=1.9];
+  merchant -> P0 [label="registration data,\npayment requests,\nAPI key"];
+  P0 -> merchant [label="API keys, checkout links,\npayment statuses,\nsigned webhooks"];
+  customer -> P0 [label="transaction hash"];
+  P0 -> customer [label="payment details\n(amount, address, status)"];
+  P0 -> chain [label="transaction lookup\nrequests"];
+  chain -> P0 [label="transaction data,\nreceipts, block number"];
+}

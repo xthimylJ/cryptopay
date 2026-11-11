@@ -1,0 +1,36 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Deployment Diagram
+node "Customer's device" {
+  node "Web browser" {
+    artifact "checkout.html" as A1
+    component "MetaMask extension" as MM
+  }
+}
+node "Merchant's device" {
+  node "Web browser " {
+    artifact "dashboard.html" as A2
+  }
+}
+node "Merchant's backend server" as SHOP {
+  component "E-shop\n(webhook endpoint)" as SHOPC
+}
+cloud "Render.com (cloud PaaS)" {
+  node "Web Service (Linux container,\nPython 3.12)" {
+    component "Uvicorn ASGI server" as UV
+    artifact "CryptoPay FastAPI app" as APP
+  }
+  database "Render PostgreSQL" as PG
+}
+cloud "Ethereum Sepolia testnet" {
+  node "Public RPC node\n(publicnode.com)" as RPC
+}
+A1 --> APP : HTTPS / JSON
+A2 --> APP : HTTPS / JSON\n(Bearer API key)
+SHOPC --> APP : HTTPS REST API
+APP --> SHOPC : HTTPS webhook\n(HMAC-SHA256 signed)
+UV --> APP
+APP --> PG : TCP 5432 / SQL
+APP --> RPC : HTTPS JSON-RPC
+MM --> RPC : signed transaction
+@enduml

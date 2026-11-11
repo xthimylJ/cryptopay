@@ -1,0 +1,113 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Class Diagram (business layer)
+skinparam linetype ortho
+
+package "services" {
+  class MerchantService {
+    - merchants: MerchantRepository
+    + register(data): (Merchant, api_key)
+    + authenticate(api_key): Merchant
+    + update(merchant, data): Merchant
+  }
+  class PaymentService {
+    - payments: PaymentRepository
+    - gateway: BlockchainGateway
+    - notifier: WebhookNotifier
+    + create_payment(merchant, data): Payment
+    + get_for_merchant(merchant, id): Payment
+    + list_for_merchant(merchant): Payment[]
+    + cancel(merchant, id): Payment
+    + get_for_checkout(id): Payment
+    + submit_transaction(id, tx_hash): Payment
+    + refresh(id): Payment
+    - _verify(payment): Payment
+    - _expire_if_needed(payment): Payment
+  }
+  abstract class WebhookNotifier <<interface>> {
+    + {abstract} notify(payment, event_type)
+  }
+  class HttpWebhookNotifier {
+    - events: WebhookEventRepository
+    - http: httpx.Client
+    + notify(payment, event_type)
+  }
+}
+
+package "blockchain" {
+  abstract class BlockchainGateway <<interface>> {
+    + network_name: str
+    + chain_id: int
+    + {abstract} verify_transaction(tx_hash, expected_to, amount_wei): VerificationResult
+  }
+  class SepoliaGateway {
+    - rpc_url: str
+    - min_confirmations: int
+    - http: httpx.Client
+    - _rpc(method, params)
+    + verify_transaction(...)
+  }
+  class MockGateway {
+    + verify_transaction(...)
+  }
+  class VerificationResult <<dataclass>> {
+    + status: TxStatus
+    + reason: str
+    + payer_address: str
+    + confirmations: int
+  }
+  enum TxStatus {
+    PENDING
+    CONFIRMED
+    FAILED
+  }
+}
+
+package "repositories" {
+  class MerchantRepository
+  class PaymentRepository
+  class WebhookEventRepository
+}
+
+package "models" {
+  class Merchant {
+    id, name, email
+    wallet_address, webhook_url
+    api_key_hash, webhook_secret
+  }
+  class Payment {
+    id, amount_wei, status
+    to_address, tx_hash
+    expires_at, paid_at
+  }
+  class WebhookEvent {
+    id, event_type, url
+    payload, success
+  }
+  enum PaymentStatus {
+    PENDING
+    CONFIRMING
+    PAID
+    FAILED
+    EXPIRED
+    CANCELED
+  }
+}
+
+BlockchainGateway <|-- SepoliaGateway
+BlockchainGateway <|-- MockGateway
+WebhookNotifier <|-- HttpWebhookNotifier
+PaymentService --> BlockchainGateway : depends on\nabstraction (DIP)
+PaymentService --> WebhookNotifier
+PaymentService --> PaymentRepository
+MerchantService --> MerchantRepository
+HttpWebhookNotifier --> WebhookEventRepository
+BlockchainGateway ..> VerificationResult : returns
+VerificationResult --> TxStatus
+Merchant "1" -- "0..*" Payment
+Payment "1" -- "0..*" WebhookEvent
+Payment --> PaymentStatus
+PaymentRepository ..> Payment
+MerchantRepository ..> Merchant
+WebhookEventRepository ..> WebhookEvent
+@enduml

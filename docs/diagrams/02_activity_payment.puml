@@ -1,0 +1,48 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Activity Diagram: paying for an order
+|Merchant's server|
+start
+:Customer places an order;
+:POST /v1/payments\n(amount, order_id);
+|CryptoPay|
+:Validate API key and amount;
+:Create payment (status = PENDING,\nexpires in 30 min);
+:Return checkout_url;
+|Merchant's server|
+:Redirect customer to checkout_url;
+|Customer|
+:Open checkout page;
+if (Payment expired?) then (yes)
+  |CryptoPay|
+  :Set status = EXPIRED;
+  :Send webhook "payment.expired";
+  stop
+else (no)
+endif
+|Customer|
+:Click "Pay with MetaMask";
+:Connect account, switch to Sepolia;
+:Confirm transaction in MetaMask;
+|CryptoPay|
+:Receive tx_hash, check it was not used before;
+:Set status = CONFIRMING;
+repeat
+  :Ask blockchain node about the transaction;
+  if (Receiver and amount correct,\ntx succeeded?) then (no)
+    :Set status = FAILED (with reason);
+    :Send webhook "payment.failed";
+    stop
+  else (yes / not mined yet)
+  endif
+repeat while (Enough confirmations?) is (no, wait 4 s)
+->yes;
+:Set status = PAID;
+:Send signed webhook "payment.paid";
+|Merchant's server|
+:Verify HMAC signature;
+:Mark order as paid, ship goods;
+|Customer|
+:See "Payment received",\nredirect to shop;
+stop
+@enduml

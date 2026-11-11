@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pay with CryptoPay</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="/">Crypto<span>Pay</span></a>
+    <span class="muted">Secure checkout</span>
+  </header>
+
+  <main class="wrap narrow">
+    <div class="card" id="loading"><span class="spinner"></span> Loading payment…</div>
+    <div class="notice bad hidden" id="fatal"></div>
+
+    <section class="card hidden" id="payment">
+      <div class="row" style="justify-content:space-between">
+        <span class="muted">Pay <b id="merchant"></b></span>
+        <span class="badge" id="status"></span>
+      </div>
+      <div class="amount"><span id="amount"></span> <span id="currency"></span></div>
+      <div class="muted" id="description"></div>
+
+      <dl class="kv">
+        <dt>Network</dt><dd id="network"></dd>
+        <dt>Pay to</dt><dd class="mono" id="to"></dd>
+        <dt>Expires in</dt><dd id="countdown"></dd>
+        <dt class="hidden" id="txLabel">Transaction</dt><dd class="mono hidden" id="txValue"></dd>
+      </dl>
+
+      <div class="notice hidden" id="message"></div>
+
+      <!-- Shown only while the payment is waiting for money -->
+      <div id="actions">
+        <div id="metamaskBox">
+          <button class="full" id="payMetaMask">Pay with MetaMask</button>
+          <p class="muted" style="margin:8px 0 0">MetaMask will switch to the Sepolia test network.
+            Test ETH is free from a Sepolia faucet.</p>
+        </div>
+        <div id="mockBox" class="hidden">
+          <div class="notice info">Simulation mode: no real blockchain is used.</div>
+          <button class="full" id="simulateOk">Simulate successful payment</button>
+          <button class="full secondary" id="simulateFail">Simulate failed payment</button>
+        </div>
+        <details style="margin-top:14px">
+          <summary class="muted">Already sent the money from another wallet?</summary>
+          <label for="manualHash">Transaction hash</label>
+          <input id="manualHash" placeholder="0x…">
+          <button class="full secondary" id="submitManual">Check my transaction</button>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  // ---- Setup ---------------------------------------------------------------
+  const paymentId = location.pathname.split("/").pop();
+  const API = `/api/checkout/${paymentId}`;
+  const FINAL = ["paid", "failed", "expired", "canceled"];
+  const $ = (id) => document.getElementById(id);
+  let info = null;
+  let pollTimer = null;
+
+  // ---- Talking to our backend ---------------------------------------------
+  async function api(path = "", options = {}) {
+    const res = await fetch(API + path, {
+      headers: { "Content-Type": "application/json" }, ...options,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail = Array.isArray(data.detail) ? data.detail[0].msg : data.detail;
+      throw new Error(detail || `Request failed (${res.status})`);
+    }
+    return data;
+  }
+
+  function showMessage(text, kind = "info") {
+    const m = $("message");
+    m.className = `notice ${kind}`;
+    m.innerHTML = text;
+  }
+
+  // ---- Drawing the page from the payment data -----------------------------
+  function render(data) {
+    info = data;
+    $("loading").classList.add("hidden");
+    $("payment").classList.remove("hidden");
+    $("merchant").textContent = data.merchant_name;
+    $("amount").textContent = data.amount;
+    $("currency").textContent = data.currency;
+    $("description").textContent = data.description || "";
+    $("network").textContent = data.mode === "sepolia" ? "Ethereum Sepolia (testnet)" : "Simulated Sepolia";
+    $("to").textContent = data.to_address;
+    $("status").textContent = data.status;
+    $("status").className = `badge ${data.status}`;
+
+    if (data.tx_hash) {
+      $("txLabel").classList.remove("hidden");
+      $("txValue").classList.remove("hidden");
+      $("txValue").innerHTML = data.mode === "sepolia"
+        ? `<a href="https://sepolia.etherscan.io/tx/${data.tx_hash}" target="_blank" rel="noopener">${data.tx_hash}</a>`
+        : data.tx_hash;
+    }
+
+    $("metamaskBox").classList.toggle("hidden", data.mode !== "sepolia");
+    $("mockBox").classList.toggle("hidden", data.mode === "sepolia");
+    $("actions").classList.toggle("hidden", data.status !== "pending");
+
+    if (data.status === "confirming") {
+      showMessage('<span class="spinner"></span> Transaction sent. Waiting for the blockchain to confirm it…', "warn");
+      startPolling();
+    } else if (data.status === "paid") {
+      stopPolling();
+      let text = "Payment received. Thank you!";
+      if (data.success_url) {
+        text += " Returning you to the store…";
+        setTimeout(() => location.href = data.success_url, 3000);
+      }
+      showMessage(text, "ok");
+    } else if (data.status === "failed") {
+      stopPolling();
+      showMessage(`Payment failed: ${data.failure_reason || "unknown reason"}`, "bad");
+    } else if (data.status === "expired") {
+      showMessage("This payment link has expired. Please ask the store for a new one.", "bad");
+    } else if (data.status === "canceled") {
+      showMessage("This payment was canceled by the store.", "bad");
+    } else {
+      $("message").className = "notice hidden";
+    }
+  }
+
+  // Countdown until the payment expires
+  setInterval(() => {
+    if (!info) return;
+    if (info.status !== "pending") { $("countdown").textContent = "—"; return; }
+    const left = Math.max(0, new Date(info.expires_at) - new Date());
+    const m = Math.floor(left / 60000), s = Math.floor(left % 60000 / 1000);
+    $("countdown").textContent = `${m}:${String(s).padStart(2, "0")}`;
+    if (left === 0) load();   // backend will mark it expired
+  }, 1000);
+
+  // While the status is "confirming", ask the backend every 4 seconds
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(async () => {
+      try { render(await api("/refresh", { method: "POST" })); }
+      catch (e) { showMessage(e.message, "bad"); }
+    }, 4000);
+  }
+  function stopPolling() { clearInterval(pollTimer); pollTimer = null; }
+
+  async function submitHash(txHash) {
+    try {
+      showMessage('<span class="spinner"></span> Verifying transaction…', "warn");
+      render(await api("/transaction", { method: "POST", body: JSON.stringify({ tx_hash: txHash }) }));
+    } catch (e) { showMessage(e.message, "bad"); }
+  }
+
+  // ---- MetaMask integration ------------------------------------------------
+  // MetaMask injects `window.ethereum` into the page. We ask it to:
+  //  1) connect an account, 2) switch to Sepolia, 3) send the ETH.
+  // The private key never leaves MetaMask - we only receive the tx hash.
+  const SEPOLIA = {
+    chainId: "0xaa36a7",
+    chainName: "Sepolia",
+    nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
+    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+  };
+
+  async function payWithMetaMask() {
+    if (!window.ethereum) {
+      showMessage('MetaMask is not installed. Get it at <a href="https://metamask.io" target="_blank" rel="noopener">metamask.io</a>.', "bad");
+      return;
+    }
+    const button = $("payMetaMask");
+    button.disabled = true;
+    try {
+      showMessage("Confirm the connection in MetaMask…", "info");
+      const [account] = await ethereum.request({ method: "eth_requestAccounts" });
+
+      try {
+        await ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: SEPOLIA.chainId }] });
+      } catch (err) {
+        if (err.code === 4902) {  // network not added to MetaMask yet
+          await ethereum.request({ method: "wallet_addEthereumChain", params: [SEPOLIA] });
+        } else { throw err; }
+      }
+
+      showMessage("Confirm the payment in MetaMask…", "info");
+      // Amounts on Ethereum are integers in wei, sent as hex strings.
+      const valueHex = "0x" + BigInt(info.amount_wei).toString(16);
+      const txHash = await ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: info.to_address, value: valueHex }],
+      });
+      await submitHash(txHash);
+    } catch (e) {
+      const text = e.code === 4001 ? "You rejected the request in MetaMask." : (e.message || "MetaMask error");
+      showMessage(text, "bad");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  // ---- Simulation mode -----------------------------------------------------
+  function randomHash(endsWithZeros = false) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    let hex = Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+    if (endsWithZeros) hex = hex.slice(0, 60) + "0000";
+    return "0x" + hex;
+  }
+
+  // ---- Wire up buttons and load -------------------------------------------
+  $("payMetaMask").onclick = payWithMetaMask;
+  $("simulateOk").onclick = () => submitHash(randomHash(false));
+  $("simulateFail").onclick = () => submitHash(randomHash(true));
+  $("submitManual").onclick = () => submitHash($("manualHash").value.trim());
+
+  async function load() {
+    try { render(await api()); }
+    catch (e) {
+      $("loading").classList.add("hidden");
+      $("fatal").textContent = e.message;
+      $("fatal").classList.remove("hidden");
+    }
+  }
+  load();
+  </script>
+</body>
+</html>

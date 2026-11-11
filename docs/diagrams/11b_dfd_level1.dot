@@ -1,0 +1,37 @@
+digraph DFD1 {
+  label="CryptoPay — DFD Level 1"; labelloc=t; fontsize=18; fontname="DejaVu Sans";
+  rankdir=LR; nodesep=0.55; ranksep=1.1; dpi=150;
+  node [fontname="DejaVu Sans", fontsize=11]; edge [fontname="DejaVu Sans", fontsize=9, color="#3d3f5c"];
+  node [shape=circle, style=filled, fillcolor="#eef0ff", color="#4f46e5", fixedsize=true, width=1.45];
+  P1 [label="1.0\nManage\nmerchants"];
+  P2 [label="2.0\nCreate &\nmanage\npayments"];
+  P3 [label="3.0\nProcess\ncheckout"];
+  P4 [label="4.0\nVerify\ntransaction"];
+  P5 [label="5.0\nSend\nwebhooks"];
+  node [shape=box, style=filled, fillcolor="#f6f7fb", color="#3d3f5c", fixedsize=false, width=0];
+  M [label="Merchant /\nMerchant's server"];
+  C [label="Customer"];
+  BC [label="Ethereum Sepolia"];
+  node [shape=record, style=filled, fillcolor="#e3f6ee", color="#0f8a5f"];
+  D1 [label="<f0> D1 | merchants"];
+  D2 [label="<f0> D2 | payments"];
+  D3 [label="<f0> D3 | webhook_events"];
+  M -> P1 [label="name, email,\nwallet, webhook URL"];
+  P1 -> M [label="API key,\nwebhook secret"];
+  P1 -> D1 [label="merchant record\n(key hash)"];
+  D1 -> P2 [label="merchant\n(by API key hash)"];
+  M -> P2 [label="amount, order_id,\nAPI key"];
+  P2 -> M [label="payment, checkout_url,\nstatus list"];
+  P2 -> D2 [label="new payment\n(PENDING)"];
+  C -> P3 [label="payment id,\ntx_hash"];
+  P3 -> C [label="amount, address,\nstatus"];
+  D2 -> P3 [label="payment details"];
+  P3 -> P4 [label="tx_hash, expected\naddress & amount"];
+  P4 -> BC [label="RPC requests"];
+  BC -> P4 [label="tx, receipt,\nblock number"];
+  P4 -> D2 [label="new status\n(PAID / FAILED)"];
+  P4 -> P5 [label="status change\nevent"];
+  D1 -> P5 [label="webhook URL,\nsecret"];
+  P5 -> M [label="signed webhook"];
+  P5 -> D3 [label="delivery log"];
+}

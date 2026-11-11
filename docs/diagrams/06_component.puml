@@ -1,0 +1,52 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Component Diagram (layered architecture)
+skinparam componentStyle rectangle
+
+package "Presentation layer" {
+  [Landing page] as P1
+  [Merchant dashboard\n(HTML + JS)] as P2
+  [Checkout page\n(HTML + JS + MetaMask)] as P3
+  [Merchants API\n/v1/merchants] as R1
+  [Payments API\n/v1/payments] as R2
+  [Checkout API\n/api/checkout] as R3
+  [Demo shop receiver\n/demo/webhook-receiver] as R4
+}
+package "Business layer" {
+  [MerchantService] as S1
+  [PaymentService] as S2
+  [WebhookNotifier] as S3
+  [Auth & HMAC\n(security)] as S4
+}
+package "Integration layer" {
+  [BlockchainGateway\n(Sepolia / Mock)] as G
+}
+package "Data layer" {
+  [Repositories] as REPO
+  [SQLAlchemy ORM] as ORM
+}
+database "PostgreSQL" as DB
+cloud "Sepolia RPC node" as NODE
+[MetaMask extension] as MM
+
+P2 --> R1
+P2 --> R2
+P3 --> R3
+P3 --> MM
+R1 --> S1
+R2 --> S2
+R3 --> S2
+R1 --> S4
+R2 --> S4
+R4 --> S4
+S2 --> G
+S2 --> S3
+S1 --> REPO
+S2 --> REPO
+S3 --> REPO
+REPO --> ORM
+ORM --> DB
+G --> NODE : JSON-RPC / HTTPS
+MM --> NODE
+S3 ..> R4 : webhook (HTTP POST)
+@enduml

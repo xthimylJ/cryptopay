@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CryptoPay</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="/">Crypto<span>Pay</span></a>
+    <nav><a href="/dashboard">Dashboard</a><a href="/docs">API docs</a></nav>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <span class="badge pending" id="mode">loading…</span>
+      <h1>Accept crypto payments in your business</h1>
+      <p class="muted">CryptoPay works like Stripe, but for Ethereum. Your backend creates a payment
+        with one API call, the customer pays from MetaMask, and your server gets a signed webhook
+        when the money arrives. Funds go straight to your own wallet.</p>
+      <div class="row">
+        <a class="btn" href="/dashboard">Open merchant dashboard</a>
+        <a class="btn secondary" href="/docs">Explore the API</a>
+      </div>
+    </section>
+
+    <div class="grid2" style="margin-top:28px">
+      <section class="card">
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li>Register your business and get a secret API key.</li>
+          <li>Your server calls <code>POST /v1/payments</code> and gets a <code>checkout_url</code>.</li>
+          <li>The customer opens the link and pays with MetaMask (Sepolia testnet).</li>
+          <li>CryptoPay verifies the transaction on the blockchain and sends you a webhook.</li>
+        </ol>
+      </section>
+      <section class="card">
+        <h2>One API call</h2>
+<pre>curl -X POST $BASE/v1/payments \
+  -H "Authorization: Bearer sk_test_..." \
+  -H "Content-Type: application/json" \
+  -d '{"amount": "0.001",
+       "order_id": "ORDER-1024",
+       "description": "Latte x2"}'</pre>
+        <p class="muted">Response contains <code>id</code>, <code>status: "pending"</code> and <code>checkout_url</code>.</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    fetch("/health").then(r => r.json()).then(h => {
+      const el = document.getElementById("mode");
+      el.textContent = h.blockchain_mode === "sepolia"
+        ? "Live on Ethereum Sepolia testnet" : "Simulation mode (no real blockchain)";
+    }).catch(() => {});
+  </script>
+</body>
+</html>

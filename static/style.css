@@ -1,0 +1,90 @@
+/* CryptoPay - shared styles for all pages */
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --ink: #14162b;
+  --muted: #646b85;
+  --line: #e3e6ef;
+  --brand: #4f46e5;
+  --brand-ink: #ffffff;
+  --ok: #0f8a5f;
+  --ok-bg: #e3f6ee;
+  --warn: #9a6400;
+  --warn-bg: #fff3d6;
+  --bad: #c0362c;
+  --bad-bg: #fde8e6;
+  --info: #2b59c3;
+  --info-bg: #e5edff;
+  --radius: 14px;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.5; }
+a { color: var(--brand); }
+code, .mono { font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; font-size: .88em; word-break: break-all; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; background: var(--card); border-bottom: 1px solid var(--line); }
+.logo { font-weight: 800; font-size: 1.15rem; letter-spacing: -.02em; text-decoration: none; color: var(--ink); }
+.logo span { color: var(--brand); }
+.topbar nav a { margin-left: 18px; text-decoration: none; color: var(--muted); font-weight: 500; }
+.topbar nav a:hover { color: var(--ink); }
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 28px 16px 60px; }
+.narrow { max-width: 480px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 22px; margin-bottom: 18px; }
+.card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+
+label { display: block; font-size: .85rem; font-weight: 600; margin: 10px 0 4px; color: var(--muted); }
+input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  font: inherit; background: #fff; color: var(--ink); }
+input:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+
+button, .btn { display: inline-block; border: 0; border-radius: 10px; padding: 11px 16px;
+  font: inherit; font-weight: 600; cursor: pointer; background: var(--brand); color: var(--brand-ink);
+  text-decoration: none; text-align: center; }
+button.secondary, .btn.secondary { background: #eef0f7; color: var(--ink); }
+button.danger { background: var(--bad-bg); color: var(--bad); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.full { width: 100%; margin-top: 10px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.muted { color: var(--muted); font-size: .9rem; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.badge.pending { background: var(--info-bg); color: var(--info); }
+.badge.confirming { background: var(--warn-bg); color: var(--warn); }
+.badge.paid { background: var(--ok-bg); color: var(--ok); }
+.badge.failed, .badge.expired, .badge.canceled { background: var(--bad-bg); color: var(--bad); }
+
+.notice { padding: 12px 14px; border-radius: 10px; margin: 12px 0; font-size: .92rem; }
+.notice.ok { background: var(--ok-bg); color: var(--ok); }
+.notice.bad { background: var(--bad-bg); color: var(--bad); }
+.notice.warn { background: var(--warn-bg); color: var(--warn); }
+.notice.info { background: var(--info-bg); color: var(--info); }
+.hidden { display: none !important; }
+
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; }
+.table-scroll { overflow-x: auto; }
+
+.amount { font-size: 2.2rem; font-weight: 800; letter-spacing: -.02em; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: .92rem; margin: 14px 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.secret { background: #14162b; color: #e6e8ff; padding: 10px 12px; border-radius: 10px; margin: 6px 0; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hero h1 { font-size: 2.3rem; letter-spacing: -.03em; margin: 10px 0; }
+.steps { counter-reset: s; list-style: none; padding: 0; }
+.steps li { counter-increment: s; padding: 10px 0 10px 44px; position: relative; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 8px; width: 30px; height: 30px;
+  border-radius: 50%; background: var(--info-bg); color: var(--info); font-weight: 800;
+  display: grid; place-items: center; }
+pre { background: #14162b; color: #e6e8ff; padding: 14px; border-radius: 10px; overflow-x: auto; font-size: .82rem; }

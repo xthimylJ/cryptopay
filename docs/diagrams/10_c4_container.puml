@@ -1,0 +1,25 @@
+@startuml
+!include <C4/C4_Container>
+title CryptoPay — C4 Level 2: Containers
+Person(merchant, "Merchant")
+Person(customer, "Customer")
+System_Ext(shop, "Merchant's e-shop backend")
+System_Ext(metamask, "MetaMask")
+System_Ext(eth, "Sepolia RPC node")
+System_Boundary(cp, "CryptoPay") {
+  Container(dash, "Merchant dashboard", "HTML, JavaScript", "Register, create payment links, see statuses and webhooks")
+  Container(checkout, "Checkout page", "HTML, JavaScript", "Shows amount, talks to MetaMask, polls status")
+  Container(api, "API application", "Python, FastAPI, Uvicorn", "REST API, business logic, blockchain verification, webhooks")
+  ContainerDb(db, "Database", "PostgreSQL", "Merchants, payments, webhook events")
+}
+Rel(merchant, dash, "Uses", "HTTPS")
+Rel(customer, checkout, "Uses", "HTTPS")
+Rel(dash, api, "Calls", "JSON / HTTPS, API key")
+Rel(checkout, api, "Calls", "JSON / HTTPS")
+Rel(checkout, metamask, "Requests transaction", "window.ethereum")
+Rel(shop, api, "Creates payments", "REST")
+Rel(api, shop, "Webhooks", "HTTPS, HMAC")
+Rel(api, db, "Reads / writes", "SQL")
+Rel(api, eth, "Verifies transactions", "JSON-RPC")
+Rel(metamask, eth, "Sends transaction")
+@enduml

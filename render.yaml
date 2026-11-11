@@ -1,0 +1,29 @@
+# Render "Blueprint": describes the whole cloud setup as code
+# (Infrastructure as Code). Render reads this file and creates:
+#   1) a PostgreSQL database
+#   2) a web service that runs our FastAPI app
+databases:
+  - name: cryptopay-db
+    plan: free
+    databaseName: cryptopay
+    user: cryptopay
+
+services:
+  - type: web
+    name: cryptopay
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: BLOCKCHAIN_MODE
+        value: sepolia
+      - key: MIN_CONFIRMATIONS
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cryptopay-db
+          property: connectionString

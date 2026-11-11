@@ -1,0 +1,49 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Sequence Diagram: successful payment
+autonumber
+actor Customer
+participant "Merchant\nserver" as Shop
+participant "Checkout page\n(browser)" as Page
+participant "MetaMask" as MM
+box "CryptoPay backend" #f6f7fb
+participant "API routes" as API
+participant "PaymentService" as PS
+participant "SepoliaGateway" as GW
+participant "WebhookNotifier" as WH
+database "PostgreSQL" as DB
+end box
+participant "Sepolia\nRPC node" as Node
+
+Customer -> Shop : place order
+Shop -> API : POST /v1/payments\nAuthorization: Bearer sk_test_...
+API -> PS : create_payment(merchant, data)
+PS -> DB : INSERT payment (PENDING)
+API --> Shop : 201 {id, checkout_url}
+Shop --> Customer : redirect to checkout_url
+
+Customer -> Page : open /pay/{id}
+Page -> API : GET /api/checkout/{id}
+API --> Page : amount, to_address, chain_id
+Customer -> Page : click "Pay with MetaMask"
+Page -> MM : eth_requestAccounts,\nwallet_switchEthereumChain
+Page -> MM : eth_sendTransaction(to, value)
+MM -> Node : signed transaction
+MM --> Page : tx_hash
+
+Page -> API : POST /api/checkout/{id}/transaction {tx_hash}
+API -> PS : submit_transaction(id, tx_hash)
+PS -> DB : UPDATE status = CONFIRMING
+PS -> GW : verify_transaction(tx_hash, to, amount)
+GW -> Node : eth_getTransactionByHash
+GW -> Node : eth_getTransactionReceipt
+GW -> Node : eth_blockNumber
+GW --> PS : CONFIRMED (payer, confirmations)
+PS -> DB : UPDATE status = PAID, paid_at
+PS -> WH : notify(payment, "payment.paid")
+WH -> Shop : POST webhook_url\nX-CryptoPay-Signature: HMAC
+Shop --> WH : 200 OK
+WH -> DB : INSERT webhook_event
+API --> Page : status = PAID
+Page --> Customer : "Payment received" → redirect to shop
+@enduml

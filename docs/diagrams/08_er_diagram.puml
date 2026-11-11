@@ -1,0 +1,50 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Entity-Relationship Diagram
+hide circle
+skinparam linetype ortho
+entity "merchants" as m {
+  * id : varchar(40) <<PK>>
+  --
+  * name : varchar(120)
+  * email : varchar(255) <<UNIQUE>>
+  * wallet_address : varchar(42)
+  webhook_url : varchar(500)
+  * api_key_hash : varchar(64) <<UNIQUE>>
+  * api_key_prefix : varchar(20)
+  * webhook_secret : varchar(80)
+  * created_at : timestamptz
+}
+entity "payments" as p {
+  * id : varchar(40) <<PK>>
+  --
+  * merchant_id : varchar(40) <<FK>>
+  * amount_wei : varchar(78)
+  * currency : varchar(10)
+  * network : varchar(20)
+  description : varchar(500)
+  order_id : varchar(100)
+  * to_address : varchar(42)
+  * status : varchar(20)
+  tx_hash : varchar(66) <<UNIQUE>>
+  payer_address : varchar(42)
+  success_url : varchar(500)
+  failure_reason : varchar(300)
+  * created_at : timestamptz
+  * expires_at : timestamptz
+  paid_at : timestamptz
+}
+entity "webhook_events" as w {
+  * id : integer <<PK>>
+  --
+  * payment_id : varchar(40) <<FK>>
+  * event_type : varchar(50)
+  * url : varchar(500)
+  * payload : text
+  response_status : integer
+  * success : boolean
+  * created_at : timestamptz
+}
+m ||--o{ p : "creates"
+p ||--o{ w : "triggers"
+@enduml

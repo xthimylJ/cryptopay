@@ -1,0 +1,18 @@
+@startuml
+!include <C4/C4_Context>
+title CryptoPay — C4 Level 1: System Context
+Person(merchant, "Merchant", "Business owner who wants to accept crypto")
+Person(customer, "Customer", "Buys goods and pays in ETH")
+System(cryptopay, "CryptoPay", "Payment gateway: creates payments, verifies blockchain transactions, notifies merchants")
+System_Ext(shop, "Merchant's e-shop", "The other business's website and backend")
+System_Ext(metamask, "MetaMask", "Customer's crypto wallet (browser extension)")
+System_Ext(eth, "Ethereum Sepolia", "Public test blockchain")
+Rel(merchant, cryptopay, "Registers, creates payment links, views payments", "HTTPS")
+Rel(shop, cryptopay, "Creates payments via API", "REST / HTTPS")
+Rel(cryptopay, shop, "Sends payment webhooks", "HTTPS, HMAC")
+Rel(customer, cryptopay, "Opens checkout page", "HTTPS")
+Rel(customer, metamask, "Approves transaction")
+Rel(metamask, eth, "Broadcasts transaction")
+Rel(cryptopay, eth, "Reads transactions", "JSON-RPC")
+Rel(customer, shop, "Places order")
+@enduml

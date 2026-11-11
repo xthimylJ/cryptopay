@@ -1,0 +1,20 @@
+@startuml
+!include _style.iuml
+title CryptoPay — State Machine Diagram: Payment
+hide empty description
+[*] --> PENDING : merchant creates payment
+PENDING --> CONFIRMING : customer submits tx_hash
+PENDING --> EXPIRED : 30 min passed\n[no transaction]
+PENDING --> CANCELED : merchant cancels
+CONFIRMING --> CONFIRMING : refresh\n[not mined / not enough confirmations]
+CONFIRMING --> PAID : tx valid and confirmed
+CONFIRMING --> FAILED : wrong receiver /\namount too low / reverted
+PAID --> [*]
+FAILED --> [*]
+EXPIRED --> [*]
+CANCELED --> [*]
+note right of PAID : webhook "payment.paid"
+note right of FAILED : webhook "payment.failed"
+note left of EXPIRED : webhook "payment.expired"
+note left of CANCELED : webhook "payment.canceled"
+@enduml

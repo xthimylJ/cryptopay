@@ -1,0 +1,44 @@
+@startuml
+!include _style.iuml
+title CryptoPay — Use Case Diagram
+left to right direction
+actor "Merchant\n(business owner)" as M
+actor "Merchant's server\n(e-shop backend)" as MS
+actor "Customer\n(payer)" as C
+actor "MetaMask wallet" as W <<system>>
+actor "Ethereum Sepolia\nnetwork" as BC <<system>>
+
+rectangle "CryptoPay" {
+  usecase "Register business\n& get API keys" as UC1
+  usecase "Sign in with API key" as UC2
+  usecase "Update wallet /\nwebhook URL" as UC3
+  usecase "Create payment\n(get checkout link)" as UC4
+  usecase "View payments\n& statuses" as UC5
+  usecase "Cancel pending\npayment" as UC6
+  usecase "Open checkout page" as UC7
+  usecase "Pay with MetaMask" as UC8
+  usecase "Submit transaction\nhash manually" as UC9
+  usecase "Verify transaction\non blockchain" as UC10
+  usecase "Send signed webhook" as UC11
+  usecase "Expire unpaid\npayment" as UC12
+}
+
+M --> UC1
+M --> UC2
+M --> UC3
+M --> UC5
+M --> UC6
+UC4 <-- MS
+UC5 <-- MS
+C --> UC7
+C --> UC8
+C --> UC9
+UC8 ..> UC10 : <<include>>
+UC9 ..> UC10 : <<include>>
+UC10 ..> UC11 : <<include>>
+UC12 .> UC11 : <<include>>
+UC2 <.. UC4 : <<include>>
+UC8 -- W
+UC10 -- BC
+UC11 --> MS
+@enduml

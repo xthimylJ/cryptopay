@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Merchant Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="/">Crypto<span>Pay</span></a>
+    <nav><a href="/dashboard">Dashboard</a><a href="/docs">API docs</a>
+      <a href="#" id="logout" class="hidden">Log out</a></nav>
+  </header>
+
+  <main class="wrap">
+    <div class="notice bad hidden" id="error"></div>
+
+    <!-- ===== Not logged in: register or sign in ===== -->
+    <div class="grid2" id="authView">
+      <section class="card">
+        <h2>Register your business</h2>
+        <form id="registerForm">
+          <label for="rName">Business name</label>
+          <input id="rName" required minlength="2" placeholder="Coffee Shop">
+          <label for="rEmail">Email</label>
+          <input id="rEmail" type="email" required placeholder="owner@coffee.kg">
+          <label for="rWallet">Your Ethereum wallet address (money goes here)</label>
+          <input id="rWallet" required placeholder="0x…" pattern="^0x[0-9a-fA-F]{40}$">
+          <label for="rWebhook">Webhook URL (optional)</label>
+          <input id="rWebhook" placeholder="https://…">
+          <p class="muted">Pre-filled with the built-in demo shop, so you can see webhooks arrive.</p>
+          <button class="full" type="submit">Create account</button>
+        </form>
+      </section>
+      <section class="card">
+        <h2>Sign in with an API key</h2>
+        <form id="loginForm">
+          <label for="lKey">Secret API key</label>
+          <input id="lKey" required placeholder="sk_test_…">
+          <button class="full" type="submit">Sign in</button>
+        </form>
+      </section>
+    </div>
+
+    <!-- Shown once after registration -->
+    <section class="card hidden" id="secrets">
+      <h2>Save your keys now</h2>
+      <p class="muted">They are shown only once. CryptoPay stores only a hash of the API key.</p>
+      <label>Secret API key (for <code>Authorization: Bearer …</code>)</label>
+      <div class="secret mono" id="sApiKey"></div>
+      <label>Webhook signing secret (to verify our HMAC signatures)</label>
+      <div class="secret mono" id="sWebhook"></div>
+      <button class="secondary" id="hideSecrets">I saved them</button>
+    </section>
+
+    <!-- ===== Logged in ===== -->
+    <div id="appView" class="hidden">
+      <div class="grid2">
+        <section class="card">
+          <h2 id="mName"></h2>
+          <dl class="kv">
+            <dt>Merchant ID</dt><dd class="mono" id="mId"></dd>
+            <dt>Wallet</dt><dd class="mono" id="mWallet"></dd>
+            <dt>Webhook</dt><dd class="mono" id="mWebhook"></dd>
+            <dt>API key</dt><dd class="mono" id="mKey"></dd>
+          </dl>
+        </section>
+        <section class="card">
+          <h2>Create a payment link</h2>
+          <form id="paymentForm">
+            <label for="pAmount">Amount (ETH)</label>
+            <input id="pAmount" required value="0.0001" inputmode="decimal">
+            <div class="grid2" style="gap:10px">
+              <div><label for="pOrder">Order ID</label><input id="pOrder" placeholder="ORDER-1"></div>
+              <div><label for="pDesc">Description</label><input id="pDesc" placeholder="Latte x2"></div>
+            </div>
+            <button class="full" type="submit">Create payment</button>
+          </form>
+          <div class="notice ok hidden" id="created"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2>Payments</h2>
+          <button class="secondary" id="reload">Refresh</button>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Payment</th><th>Order</th><th>Amount</th><th>Status</th><th>Created</th><th></th></tr></thead>
+            <tbody id="payments"><tr><td colspan="6" class="muted">No payments yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Webhooks received by the demo shop</h2>
+        <p class="muted">This plays the role of your own server: it receives our webhook and checks the HMAC signature.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Time</th><th>Event</th><th>Order</th><th>Payment</th><th>Signature</th></tr></thead>
+            <tbody id="webhooks"><tr><td colspan="5" class="muted">Nothing yet.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  const $ = (id) => document.getElementById(id);
+  const KEY_STORE = "cryptopay_api_key";
+  let apiKey = null;
+  let merchant = null;
+
+  // localStorage can be blocked (private mode), so always guard it.
+  const store = {
+    get() { try { return localStorage.getItem(KEY_STORE); } catch { return null; } },
+    set(v) { try { localStorage.setItem(KEY_STORE, v); } catch {} },
+    clear() { try { localStorage.removeItem(KEY_STORE); } catch {} },
+  };
+
+  const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g,
+    c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function api(path, options = {}) {
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const res = await fetch(path, { headers, ...options });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const detail = Array.isArray(data.detail)
+        ? data.detail.map(d => `${d.loc.at(-1)}: ${d.msg}`).join("; ") : data.detail;
+      throw new Error(detail || `Request failed (${res.status})`);
+    }
+    return data;
+  }
+
+  function showError(e) {
+    $("error").textContent = e ? e.message || e : "";
+    $("error").classList.toggle("hidden", !e);
+  }
+
+  // ---- Auth ----------------------------------------------------------------
+  $("rWebhook").value = location.origin + "/demo/webhook-receiver";
+
+  $("registerForm").onsubmit = async (ev) => {
+    ev.preventDefault(); showError(null);
+    try {
+      const m = await api("/v1/merchants", { method: "POST", body: JSON.stringify({
+        name: $("rName").value, email: $("rEmail").value,
+        wallet_address: $("rWallet").value.trim(), webhook_url: $("rWebhook").value.trim() || null,
+      })});
+      $("sApiKey").textContent = m.api_key;
+      $("sWebhook").textContent = m.webhook_secret;
+      $("secrets").classList.remove("hidden");
+      await login(m.api_key);
+    } catch (e) { showError(e); }
+  };
+
+  $("loginForm").onsubmit = async (ev) => {
+    ev.preventDefault(); showError(null);
+    try { await login($("lKey").value.trim()); } catch (e) { showError(e); }
+  };
+
+  $("hideSecrets").onclick = () => $("secrets").classList.add("hidden");
+
+  $("logout").onclick = (ev) => {
+    ev.preventDefault(); store.clear(); apiKey = null; merchant = null;
+    $("appView").classList.add("hidden"); $("authView").classList.remove("hidden");
+    $("logout").classList.add("hidden");
+  };
+
+  async function login(key) {
+    apiKey = key;
+    try { merchant = await api("/v1/merchants/me"); }
+    catch (e) { apiKey = null; store.clear(); throw e; }
+    store.set(key);
+    $("authView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+    $("logout").classList.remove("hidden");
+    $("mName").textContent = merchant.name;
+    $("mId").textContent = merchant.id;
+    $("mWallet").textContent = merchant.wallet_address;
+    $("mWebhook").textContent = merchant.webhook_url || "not set";
+    $("mKey").textContent = merchant.api_key_prefix + "…";
+    await refresh();
+  }
+
+  // ---- Payments -------------------------------------------------------------
+  $("paymentForm").onsubmit = async (ev) => {
+    ev.preventDefault(); showError(null);
+    try {
+      const p = await api("/v1/payments", { method: "POST", body: JSON.stringify({
+        amount: $("pAmount").value.trim(),
+        order_id: $("pOrder").value.trim() || null,
+        description: $("pDesc").value.trim() || null,
+      })});
+      $("created").innerHTML = `Payment created. Send this link to the customer:<br>
+        <a class="mono" href="${p.checkout_url}" target="_blank" rel="noopener">${p.checkout_url}</a>`;
+      $("created").classList.remove("hidden");
+      await refresh();
+    } catch (e) { showError(e); }
+  };
+
+  async function cancelPayment(id) {
+    try { await api(`/v1/payments/${id}/cancel`, { method: "POST" }); await refresh(); }
+    catch (e) { showError(e); }
+  }
+  window.cancelPayment = cancelPayment;
+
+  async function refresh() {
+    if (!apiKey) return;
+    try {
+      const list = await api("/v1/payments");
+      $("payments").innerHTML = list.length ? list.map(p => `
+        <tr>
+          <td class="mono"><a href="${p.checkout_url}" target="_blank" rel="noopener">${p.id}</a></td>
+          <td>${escapeHtml(p.order_id || "—")}</td>
+          <td>${p.amount} ${p.currency}</td>
+          <td><span class="badge ${p.status}">${p.status}</span>
+            ${p.failure_reason ? `<div class="muted">${escapeHtml(p.failure_reason)}</div>` : ""}</td>
+          <td class="muted">${new Date(p.created_at).toLocaleString()}</td>
+          <td>${p.status === "pending" ? `<button class="danger" onclick="cancelPayment('${p.id}')">Cancel</button>` : ""}</td>
+        </tr>`).join("") : '<tr><td colspan="6" class="muted">No payments yet.</td></tr>';
+
+      const hooks = await api(`/demo/webhook-receiver?merchant_id=${merchant.id}`);
+      $("webhooks").innerHTML = hooks.length ? hooks.map(h => `
+        <tr>
+          <td class="muted">${new Date(h.received_at).toLocaleTimeString()}</td>
+          <td><code>${h.event}</code></td>
+          <td>${escapeHtml(h.order_id || "—")}</td>
+          <td class="mono">${h.payment_id}</td>
+          <td>${h.signature_valid ? '<span class="badge paid">valid</span>' : '<span class="badge failed">invalid</span>'}</td>
+        </tr>`).join("") : '<tr><td colspan="5" class="muted">Nothing yet.</td></tr>';
+    } catch (e) { showError(e); }
+  }
+
+  $("reload").onclick = refresh;
+  setInterval(refresh, 5000);   // keep the table fresh while customers pay
+
+  // Restore the session if we saved a key earlier
+  const saved = store.get();
+  if (saved) login(saved).catch(() => {});
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+@startgantt
+!include _style.iuml
+title CryptoPay — Project Plan (SDLC phases, Waterfall-style for a 1-person sprint)
+printscale daily zoom 2
+Project starts 2026-11-03
+[Requirements & SRS] as [R] lasts 2 days
+[Design: UML, C4, ER, DFD] as [D] lasts 2 days
+[D] starts at [R]'s end
+[Implementation (backend + UI)] as [I] lasts 2 days
+[I] starts at [D]'s end
+[Testing (pytest + manual)] as [T] lasts 1 day
+[T] starts at [I]'s end
+[Deployment to Render] as [Dep] lasts 1 day
+[Dep] starts at [T]'s end
+[Midterm defense] happens at [Dep]'s end
+@endgantt
